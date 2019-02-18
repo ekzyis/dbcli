@@ -1,3 +1,5 @@
+#!/usr/bin/node
+
 const argv = require('minimist')(process.argv.slice(2));
 const request = require('request');
 const fs = require('fs');
