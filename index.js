@@ -83,12 +83,12 @@ request.post({url: "https://reiseauskunft.bahn.de/bin/query.exe/", form: formDat
   if(err) return console.error(err);
   const $ = cheerio.load(body);
   let arrify = elements => elements.toArray().map(obj => $(obj).text().trim());
-  let start_station = arrify($('#resultsOverview').find('tr.firstrow > td.station.first'));
-  let dest_station = arrify($('#resultsOverview').find('tr.last > td.station.stationDest'));
-  let dep_time = arrify($('#resultsOverview').find('tr.firstrow > td.time'));
-  let arr_time = arrify($('#resultsOverview').find('tr.last > td.time'));
-  let duration = arrify($('#resultsOverview').find('tr.firstrow > td.duration.lastrow'));
-  let product = arrify($('#resultsOverview').find('tr.firstrow > td.products.lastrow'));
+  let start_station = ['Start'].concat(arrify($('#resultsOverview').find('tr.firstrow > td.station.first')));
+  let dest_station = ['Ziel'].concat(arrify($('#resultsOverview').find('tr.last > td.station.stationDest')));
+  let dep_time = ['Abfahrtszeit'].concat(arrify($('#resultsOverview').find('tr.firstrow > td.time')));
+  let arr_time = ['Ankunftszeit'].concat(arrify($('#resultsOverview').find('tr.last > td.time')));
+  let duration = ['Dauer'].concat(arrify($('#resultsOverview').find('tr.firstrow > td.duration.lastrow')));
+  let product = ['Produkt'].concat(arrify($('#resultsOverview').find('tr.firstrow > td.products.lastrow')));
 
   const calculate_padding = (...dataArrays) => {
     const MIN_DISTANCE = 5;
