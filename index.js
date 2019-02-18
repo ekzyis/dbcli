@@ -23,7 +23,7 @@ const prefix = (number) => {
 };
 
 const parseToDate = (date) => {
-  return "" + prefix(date.getDate()) + prefix(date.getMonth()) + date.getFullYear()
+  return "" + prefix(date.getDate()) + prefix(date.getMonth()+1) + date.getFullYear()
 };
 
 const parseToTime = (date) => {
