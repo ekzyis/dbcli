@@ -96,12 +96,12 @@ request.post({url: "https://reiseauskunft.bahn.de/bin/query.exe/", form: formDat
 
   spinner.text = `Fetching connections... fetched: ${start_station.length-1}`;
   while(start_station.length-1 < n) {
+    // not enough connections found for given time -> make another post request with latest found time + 1 minute
     const latestJourneyTime = dep_time[dep_time.length-1];
     // console.log(`latest journey time is: ${latestJourneyTime}`);
     const minute = parseInt(latestJourneyTime.slice(-2));
     const newJourneyTime = latestJourneyTime.slice(0,latestJourneyTime.length-2) + `${minute !== 59 ? `${prefix(minute + 1)}` : "00"}`;
     // console.log(`new journey time is: ${newJourneyTime}`);
-    // not enough connections found for given time -> make another post request with latest found time + 1 minute
     await new Promise((resolve, reject) => {
       request.post({ url: "https://reiseauskunft.bahn.de/bin/query.exe/", form: {...formData, 'REQ0JourneyTime': newJourneyTime} }, (err, response, body) => {
         if(err) reject(err);
