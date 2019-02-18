@@ -106,6 +106,7 @@ request.post({url: "https://reiseauskunft.bahn.de/bin/query.exe/", form: formDat
       request.post({ url: "https://reiseauskunft.bahn.de/bin/query.exe/", form: {...formData, 'REQ0JourneyTime': newJourneyTime} }, (err, response, body) => {
         if(err) reject(err);
         const $ = cheerio.load(body);
+        // TODO remove duplicate code (see selectors above)
         start_station = start_station.concat(arrify($('#resultsOverview').find('tr.firstrow > td.station.first')));
         dest_station = dest_station.concat(arrify($('#resultsOverview').find('tr.last > td.station.stationDest')));
         dep_time = dep_time.concat(arrify($('#resultsOverview').find('tr.firstrow > td.time')));
