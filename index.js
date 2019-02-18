@@ -42,7 +42,7 @@ const FORMDATA = Object.assign({},DEFAULT_SETTINGS);
 
 Object.keys(argv).forEach(val => {
   if(val === '_') return; // ignore unmatched options
-  if(val.match(/(arrival|start|destination|date|time|s|d)/)) {
+  if(val.match(/^(arrival|start|destination|date|time|s|d)$/)) {
     let key = val;
     if(val === 's') key = 'start';
     if(val === 'd') key = 'destination';
