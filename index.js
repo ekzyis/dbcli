@@ -4,6 +4,7 @@ const argv = require('minimist')(process.argv.slice(2));
 const request = require('request');
 const fs = require('fs');
 const cheerio = require('cheerio');
+const ora = require('ora');
 
 const DEFAULT_DATA = "HWAI%3DQUERY%21rit=no&queryPageDisplayed=yes&HWAI%3DQUERY%21displayed=yes&HWAI%3DJS%21ajax=yes&HWAI%3DJS%21js=yes&REQ0JourneyStopsS0A=255" +
   "&ignoreTypeCheck=yes&REQ0JourneyStopsS0a=131072&REQ0JourneyStopsZ0A=255&REQ0JourneyStopsZ0o=8&REQ0JourneyStopsZ0a=131072&REQ1JourneyDate=&REQ1JourneyTime=" +
@@ -27,7 +28,7 @@ const parseToDate = (date) => {
 };
 
 const parseToTime = (date) => {
-  return "" + prefix(date.getHours()) + prefix(date.getMinutes()) + prefix(date.getSeconds())
+  return "" + prefix(date.getHours()) + prefix(date.getMinutes())
 };
 
 const DEFAULT_SETTINGS = {
@@ -35,14 +36,15 @@ const DEFAULT_SETTINGS = {
   destination: undefined,
   time_is_departure: true,
   date: parseToDate(new Date()),
-  time: parseToTime(new Date())
+  time: parseToTime(new Date()),
+  n: 3
 };
 
 const FORMDATA = Object.assign({},DEFAULT_SETTINGS);
 
 Object.keys(argv).forEach(val => {
   if(val === '_') return; // ignore unmatched options
-  if(val.match(/^(arrival|start|destination|date|time|s|d)$/)) {
+  if(val.match(/^(arrival|start|destination|date|time|s|d|n)$/)) {
     let key = val;
     if(val === 's') key = 'start';
     if(val === 'd') key = 'destination';
@@ -54,7 +56,7 @@ Object.keys(argv).forEach(val => {
   }
 });
 
-const { start, destination, time_is_departure, date, time } = FORMDATA;
+const { start, destination, time_is_departure, date, time, n } = FORMDATA;
 if(!(start && destination)) console.log("No start and/or destination chosen.") && process.exit(0);
 
 const parseQueryString = (query) => {
@@ -79,7 +81,9 @@ const formData = {
   'REQ0HafasSearchForw': `${time_is_departure ? "1" : "0"}`
 };
 
-request.post({url: "https://reiseauskunft.bahn.de/bin/query.exe/", form: formData}, (err, response, body) => {
+let spinner = ora({ text: 'Fetching connections...', color: 'cyan', indent: 4 }).start();
+
+request.post({url: "https://reiseauskunft.bahn.de/bin/query.exe/", form: formData}, async (err, response, body) => {
   if(err) return console.error(err);
   const $ = cheerio.load(body);
   let arrify = elements => elements.toArray().map(obj => $(obj).text().trim());
@@ -89,6 +93,30 @@ request.post({url: "https://reiseauskunft.bahn.de/bin/query.exe/", form: formDat
   let arr_time = ['Ankunftszeit'].concat(arrify($('#resultsOverview').find('tr.last > td.time')));
   let duration = ['Dauer'].concat(arrify($('#resultsOverview').find('tr.firstrow > td.duration.lastrow')));
   let product = ['Produkt'].concat(arrify($('#resultsOverview').find('tr.firstrow > td.products.lastrow')));
+
+  spinner.text = `Fetching connections... fetched: ${start_station.length-1}`;
+  while(start_station.length-1 < n) {
+    const latestJourneyTime = dep_time[dep_time.length-1];
+    // console.log(`latest journey time is: ${latestJourneyTime}`);
+    const minute = parseInt(latestJourneyTime.slice(-2));
+    const newJourneyTime = latestJourneyTime.slice(0,latestJourneyTime.length-2) + `${minute !== 59 ? `${prefix(minute + 1)}` : "00"}`;
+    // console.log(`new journey time is: ${newJourneyTime}`);
+    // not enough connections found for given time -> make another post request with latest found time + 1 minute
+    await new Promise((resolve, reject) => {
+      request.post({ url: "https://reiseauskunft.bahn.de/bin/query.exe/", form: {...formData, 'REQ0JourneyTime': newJourneyTime} }, (err, response, body) => {
+        if(err) reject(err);
+        const $ = cheerio.load(body);
+        start_station = start_station.concat(arrify($('#resultsOverview').find('tr.firstrow > td.station.first')));
+        dest_station = dest_station.concat(arrify($('#resultsOverview').find('tr.last > td.station.stationDest')));
+        dep_time = dep_time.concat(arrify($('#resultsOverview').find('tr.firstrow > td.time')));
+        arr_time = arr_time.concat(arrify($('#resultsOverview').find('tr.last > td.time')));
+        duration = duration.concat(arrify($('#resultsOverview').find('tr.firstrow > td.duration.lastrow')));
+        product = product.concat(arrify($('#resultsOverview').find('tr.firstrow > td.products.lastrow')));
+        spinner.text = `Fetching connections... fetched: ${start_station.length-1}`;
+        resolve();
+      });
+    })
+  }
 
   const calculate_padding = (...dataArrays) => {
     const MIN_DISTANCE = 5;
@@ -104,7 +132,11 @@ request.post({url: "https://reiseauskunft.bahn.de/bin/query.exe/", form: formDat
 
   const pad = calculate_padding(start_station,dest_station,dep_time,arr_time,duration,product);
 
+  // NOTE probably a race condition with the spinner
+  process.stdout.clearLine();
+  process.stdout.cursorTo(0);
   for (let i=0;i<start_station.length;++i) {
     console.log(`${start_station[i].padEnd(pad[0])}${dest_station[i].padEnd(pad[1])}${dep_time[i].padEnd(pad[2])}${arr_time[i].padEnd(pad[3])}${duration[i].padEnd(pad[4])}${product[i].padEnd(pad[5])}`)
   }
+  spinner.succeed(`Done! Total fetched: ${start_station.length-1}`);
 });
