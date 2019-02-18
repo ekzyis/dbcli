@@ -76,8 +76,6 @@ const formData = {
   'REQ0HafasSearchForw': `${time_is_departure ? "1" : "0"}`
 };
 
-request.post({url: "https://reiseauskunft.bahn.de/bin/query.exe/", form: formData}).pipe(fs.createWriteStream("debug.html"));
-
 request.post({url: "https://reiseauskunft.bahn.de/bin/query.exe/", form: formData}, (err, response, body) => {
   if(err) return console.error(err);
   const $ = cheerio.load(body);
@@ -107,4 +105,3 @@ request.post({url: "https://reiseauskunft.bahn.de/bin/query.exe/", form: formDat
     console.log(`${start_station[i].padEnd(pad[0])}${dest_station[i].padEnd(pad[1])}${dep_time[i].padEnd(pad[2])}${arr_time[i].padEnd(pad[3])}${duration[i].padEnd(pad[4])}${product[i].padEnd(pad[5])}`)
   }
 });
-
