@@ -37,31 +37,13 @@ const DEFAULT_SETTINGS = {
   time_is_departure: true,
   date: parseToDate(new Date()),
   time: parseToTime(new Date()),
-  n: 3
+  n: 3,
+  DEBUG: false
 };
-
-const FORMDATA = Object.assign({},DEFAULT_SETTINGS);
-
-Object.keys(argv).forEach(val => {
-  if(val === '_') return; // ignore unmatched options
-  if(val.match(/^(arrival|start|destination|date|time|s|d|n)$/)) {
-    let key = val;
-    if(val === 's') key = 'start';
-    if(val === 'd') key = 'destination';
-    FORMDATA[key] = argv[val];
-    // console.log(`Setting ${val} to ${argv[val]}`);
-  }
-  else {
-    console.log(`invalid option: ${val}`);
-  }
-});
-
-const { start, destination, time_is_departure, date, time, n } = FORMDATA;
-if(!(start && destination)) console.log("No start and/or destination chosen.") && process.exit(0);
 
 const parseQueryString = (query) => {
   let parsed = {};
-  query.split('&').map(v => {
+  query.split('&').forEach(v => {
     let key = v.split('=')[0];
     let value = v.split('=')[1];
     parsed = {
@@ -71,6 +53,29 @@ const parseQueryString = (query) => {
   });
   return parsed;
 };
+
+const ARGUMENTS = Object.assign({},DEFAULT_SETTINGS);
+
+Object.keys(argv).forEach(val => {
+  if(val === '_') return; // ignore unmatched options
+  if(val.match(/^(arrival|start|destination|date|time|s|d|n)$/)) {
+    let key = val;
+    if(val === 's') key = 'start';
+    if(val === 'd') key = 'destination';
+    ARGUMENTS[key] = argv[val];
+    // console.log(`Setting ${val} to ${argv[val]}`);
+  }
+  else if(val.match(/^debug$/)) {
+    ARGUMENTS["DEBUG"] = true;
+  }
+  else {
+    console.log(`invalid option: ${val}`);
+  }
+});
+
+const { start, destination, time_is_departure, date, time, n, DEBUG } = ARGUMENTS;
+
+if(!(start && destination)) console.log("No start and/or destination chosen.") || process.exit(0); // such fancy code, much wow
 
 const formData = {
   ...parseQueryString(DEFAULT_DATA),
@@ -85,6 +90,14 @@ let spinner = ora({ text: 'Fetching connections...', color: 'cyan', indent: 4 })
 
 request.post({url: "https://reiseauskunft.bahn.de/bin/query.exe/", form: formData}, async (err, response, body) => {
   if(err) return console.error(err);
+  let fetchcount = 0;
+  if(DEBUG) {
+    let file = fs.createWriteStream(`response${fetchcount}.html`);
+    file.write(body);
+    file.end();
+    fetchcount++;
+  }
+
   const $ = cheerio.load(body);
   let arrify = elements => elements.toArray().map(obj => $(obj).text().trim());
   let start_station = ['Start'].concat(arrify($('#resultsOverview').find('tr.firstrow > td.station.first')));
@@ -98,13 +111,21 @@ request.post({url: "https://reiseauskunft.bahn.de/bin/query.exe/", form: formDat
   while(start_station.length-1 < n) {
     // not enough connections found for given time -> make another post request with latest found time + 1 minute
     const latestJourneyTime = dep_time[dep_time.length-1];
-    // console.log(`latest journey time is: ${latestJourneyTime}`);
     const minute = parseInt(latestJourneyTime.slice(-2));
     const newJourneyTime = latestJourneyTime.slice(0,latestJourneyTime.length-2) + `${minute !== 59 ? `${prefix(minute + 1)}` : "00"}`;
-    // console.log(`new journey time is: ${newJourneyTime}`);
+    if(DEBUG) {
+      console.log(`\nlatest journey time is: ${latestJourneyTime}`);
+      console.log(`new journey time is: ${newJourneyTime}`);
+    }
     await new Promise((resolve, reject) => {
       request.post({ url: "https://reiseauskunft.bahn.de/bin/query.exe/", form: {...formData, 'REQ0JourneyTime': newJourneyTime} }, (err, response, body) => {
         if(err) reject(err);
+        if(DEBUG) {
+          let file = fs.createWriteStream(`response${fetchcount}.html`);
+          file.write(body);
+          file.end();
+          fetchcount++;
+        }
         const $ = cheerio.load(body);
         // TODO remove duplicate code (see selectors above)
         start_station = start_station.concat(arrify($('#resultsOverview').find('tr.firstrow > td.station.first')));
