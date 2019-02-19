@@ -108,6 +108,9 @@ request.post({url: "https://reiseauskunft.bahn.de/bin/query.exe/", form: formDat
   let product = ['Produkt'].concat(arrify($('#resultsOverview').find('tr.firstrow > td.products.lastrow')));
 
   spinner.text = `Fetching connections... fetched: ${start_station.length-1}`;
+  // save previous latest journey time to check for "website blocking"
+  let prev_latest = null;
+  let TIMEOUT = 5000; // timeout if website is blocking (increased
   while(start_station.length-1 < n) {
     // not enough connections found for given time -> make another post request with latest found time + 1 minute
     const latestJourneyTime = dep_time[dep_time.length-1];
@@ -116,6 +119,18 @@ request.post({url: "https://reiseauskunft.bahn.de/bin/query.exe/", form: formDat
     if(DEBUG) {
       console.log(`\nlatest journey time is: ${latestJourneyTime}`);
       console.log(`new journey time is: ${newJourneyTime}`);
+    }
+    if(prev_latest === latestJourneyTime) {
+      if(DEBUG) console.log(`\nserver blocking requests => ${TIMEOUT/1000} seconds timeout...`);
+      spinner.text = `Server blocking requests. Timeout for ${TIMEOUT/1000} seconds...`;
+      await new Promise(resolve => {
+        setTimeout(() => {
+          if(DEBUG) console.log("\ntimeout finished.");
+          spinner.text = `Timeout finished.`;
+          TIMEOUT *= 2;
+          resolve()
+        }, TIMEOUT);
+      }) // sleep for 500 milliseconds
     }
     await new Promise((resolve, reject) => {
       request.post({ url: "https://reiseauskunft.bahn.de/bin/query.exe/", form: {...formData, 'REQ0JourneyTime': newJourneyTime} }, (err, response, body) => {
@@ -137,7 +152,8 @@ request.post({url: "https://reiseauskunft.bahn.de/bin/query.exe/", form: formDat
         spinner.text = `Fetching connections... fetched: ${start_station.length-1}`;
         resolve();
       });
-    })
+    });
+    prev_latest = latestJourneyTime;
   }
 
   const calculate_padding = (...dataArrays) => {
