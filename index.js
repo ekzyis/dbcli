@@ -44,6 +44,20 @@ const parseQueryString = (query) => {
   return parsed;
 };
 
+const printUsage = () => {
+  let USAGE_PAD = 23;
+  console.log(`Usage: db -s START -d DESTINATION [OPTIONS]`);
+  console.log(`Search for train connections by making requests to https://reiseauskunft.bahn.de/bin/query.exe/.`);
+  console.log(`Example: db -s Mannheim -d München`);
+  console.log(`  -s, --start`.padEnd(USAGE_PAD) + `Station where connection should start`);
+  console.log(`  -d, --destination`.padEnd(USAGE_PAD) + `Station where connection should end`);
+  console.log(`  --time`.padEnd(USAGE_PAD) + `Departure or arrival time of connection. Can be set as arrival time with --arrival. Default time is "departure now".`);
+  console.log(`  --date`.padEnd(USAGE_PAD) + `Departure or arrival date of connection. Can be set as arrival date with --arrival. Default date is "departure today".`);
+  console.log(`  --arrival`.padEnd(USAGE_PAD) + `Time/date should be interpreted as arrival time`);
+  console.log(`  -n`.padEnd(USAGE_PAD) + `Minimum number connections which should be fetched`);
+  process.exit(1);
+};
+
 const DEFAULT_SETTINGS = {
   start: undefined,
   destination: undefined,
@@ -70,12 +84,13 @@ Object.keys(argv).forEach(val => {
   }
   else {
     console.log(`invalid option: ${val}`);
+    printUsage();
   }
 });
 
 const { start, destination, arrival, date, time, n, DEBUG } = ARGUMENTS;
 
-if(!(start && destination)) console.log("No start and/or destination chosen.") || process.exit(0); // such fancy code, much wow
+if(!(start && destination)) console.log("No start and/or destination chosen.") || printUsage(); // such fancy code, much wow
 
 const formData = {
   ...parseQueryString(DEFAULT_DATA),
