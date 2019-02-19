@@ -110,28 +110,34 @@ request.post({url: "https://reiseauskunft.bahn.de/bin/query.exe/", form: formDat
   spinner.text = `Fetching connections... fetched: ${start_station.length-1}`;
   // save previous latest journey time to check for "website blocking"
   let prev_latest = null;
-  let TIMEOUT = 5000; // timeout if website is blocking (increased
+  let TIMEOUT = 1; // timeout if website is blocking (increased
   while(start_station.length-1 < n) {
     // not enough connections found for given time -> make another post request with latest found time + 1 minute
     const latestJourneyTime = dep_time[dep_time.length-1];
     const minute = parseInt(latestJourneyTime.slice(-2));
     const newJourneyTime = latestJourneyTime.slice(0,latestJourneyTime.length-2) + `${minute !== 59 ? `${prefix(minute + 1)}` : "00"}`;
     if(DEBUG) {
-      console.log(`\nlatest journey time is: ${latestJourneyTime}`);
-      console.log(`new journey time is: ${newJourneyTime}`);
+      // console.log(`\nlatest journey time is: ${latestJourneyTime}`);
+      // console.log(`new journey time is: ${newJourneyTime}`);
     }
     if(prev_latest === latestJourneyTime) {
-      if(DEBUG) console.log(`\nserver blocking requests => ${TIMEOUT/1000} seconds timeout...`);
-      spinner.text = `Server blocking requests. Timeout for ${TIMEOUT/1000} seconds...`;
+      // server does not respond with connections => TIMEOUT so server will stop blocking
+      spinner.text = `Server blocking requests. Timeout for ${TIMEOUT} seconds...`;
       await new Promise(resolve => {
         setTimeout(() => {
-          if(DEBUG) console.log("\ntimeout finished.");
           spinner.text = `Timeout finished.`;
-          TIMEOUT *= 2;
+          TIMEOUT *= 2; // increase timeout (maybe server is still blocking)
+          TIMEOUT %= 13;  // max timeout is 10000
           resolve()
-        }, TIMEOUT);
-      }) // sleep for 500 milliseconds
+        }, TIMEOUT*1000);
+      })
     }
+    // always wait for 250 milliseconds between requests
+    await new Promise(resolve => {
+      setTimeout(() => {
+        resolve()
+      }, 250);
+    });
     await new Promise((resolve, reject) => {
       request.post({ url: "https://reiseauskunft.bahn.de/bin/query.exe/", form: {...formData, 'REQ0JourneyTime': newJourneyTime} }, (err, response, body) => {
         if(err) reject(err);
