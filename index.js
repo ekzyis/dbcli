@@ -34,7 +34,7 @@ const parseToTime = (date) => {
 const DEFAULT_SETTINGS = {
   start: undefined,
   destination: undefined,
-  time_is_departure: true,
+  arrival: false,
   date: parseToDate(new Date()),
   time: parseToTime(new Date()),
   n: 3,
@@ -73,7 +73,7 @@ Object.keys(argv).forEach(val => {
   }
 });
 
-const { start, destination, time_is_departure, date, time, n, DEBUG } = ARGUMENTS;
+const { start, destination, arrival, date, time, n, DEBUG } = ARGUMENTS;
 
 if(!(start && destination)) console.log("No start and/or destination chosen.") || process.exit(0); // such fancy code, much wow
 
@@ -83,7 +83,7 @@ const formData = {
   'REQ0JourneyStopsZ0G': destination,
   'REQ0JourneyTime': time,
   'REQ0JourneyDate': date,
-  'REQ0HafasSearchForw': `${time_is_departure ? "1" : "0"}`
+  'REQ0HafasSearchForw': `${arrival ? "0" : "1"}`
 };
 
 let spinner = ora({ text: 'Fetching connections...', color: 'cyan', indent: 4 }).start();
@@ -113,14 +113,14 @@ request.post({url: "https://reiseauskunft.bahn.de/bin/query.exe/", form: formDat
   let TIMEOUT = 1; // timeout if website is blocking (increased
   while(start_station.length-1 < n) {
     // not enough connections found for given time -> make another post request with latest found time + 1 minute
-    const latestJourneyTime = dep_time[dep_time.length-1];
-    const minute = parseInt(latestJourneyTime.slice(-2));
-    const newJourneyTime = latestJourneyTime.slice(0,latestJourneyTime.length-2) + `${minute !== 59 ? `${prefix(minute + 1)}` : "00"}`;
+    const latestDepartureTime = dep_time[dep_time.length-1];
+    const minute = parseInt(latestDepartureTime.slice(-2));
+    const newDepartureTime = latestDepartureTime.slice(0,latestDepartureTime.length-2) + `${minute !== 59 ? `${prefix(minute + 1)}` : "00"}`;
     if(DEBUG) {
       // console.log(`\nlatest journey time is: ${latestJourneyTime}`);
       // console.log(`new journey time is: ${newJourneyTime}`);
     }
-    if(prev_latest === latestJourneyTime) {
+    if(prev_latest === latestDepartureTime) {
       // server does not respond with connections => TIMEOUT so server will stop blocking
       spinner.text = `Server blocking requests. Timeout for ${TIMEOUT} seconds...`;
       await new Promise(resolve => {
@@ -139,7 +139,8 @@ request.post({url: "https://reiseauskunft.bahn.de/bin/query.exe/", form: formDat
       }, 250);
     });
     await new Promise((resolve, reject) => {
-      request.post({ url: "https://reiseauskunft.bahn.de/bin/query.exe/", form: {...formData, 'REQ0JourneyTime': newJourneyTime} }, (err, response, body) => {
+      // subsequents request times are always handled as departure time since we add 1 minute to latest departure time
+      request.post({ url: "https://reiseauskunft.bahn.de/bin/query.exe/", form: {...formData, 'REQ0JourneyTime': newDepartureTime, 'REQ0HafasSearchForw': "1"} }, (err, response, body) => {
         if(err) reject(err);
         if(DEBUG) {
           let file = fs.createWriteStream(`response${fetchcount}.html`);
@@ -159,7 +160,7 @@ request.post({url: "https://reiseauskunft.bahn.de/bin/query.exe/", form: formDat
         resolve();
       });
     });
-    prev_latest = latestJourneyTime;
+    prev_latest = latestDepartureTime;
   }
 
   const calculate_padding = (...dataArrays) => {
