@@ -31,16 +31,6 @@ const parseToTime = (date) => {
   return "" + prefix(date.getHours()) + prefix(date.getMinutes())
 };
 
-const DEFAULT_SETTINGS = {
-  start: undefined,
-  destination: undefined,
-  arrival: false,
-  date: parseToDate(new Date()),
-  time: parseToTime(new Date()),
-  n: 3,
-  DEBUG: false
-};
-
 const parseQueryString = (query) => {
   let parsed = {};
   query.split('&').forEach(v => {
@@ -52,6 +42,16 @@ const parseQueryString = (query) => {
     }
   });
   return parsed;
+};
+
+const DEFAULT_SETTINGS = {
+  start: undefined,
+  destination: undefined,
+  arrival: false,
+  date: parseToDate(new Date()),
+  time: parseToTime(new Date()),
+  n: 3,
+  DEBUG: false
 };
 
 const ARGUMENTS = Object.assign({},DEFAULT_SETTINGS);
