@@ -85,7 +85,7 @@ DBParser.prototype.checkForErrors = function() {
   if(timeErr.length !== 0 && timeErr[0] !== "") {
     error.push(`Zeit: ${timeErr[0]}`);
   }
-  return error === [] ? null : ['Server konnte Anfrage nicht bearbeiten!'].concat(error).join('\n');
+  return error.length === 0 ? null : ['Server konnte Anfrage nicht bearbeiten!'].concat(error).join('\n');
 };
 
 module.exports = {
