@@ -64,6 +64,29 @@ DBParser.prototype.getDurationTimeElements = function() {
 DBParser.prototype.getProductElements = function() {
   return this.arrify(this.$('#resultsOverview').find('tr.firstrow > td.products.lastrow'))
 };
+DBParser.prototype.checkForErrors = function() {
+  let error = [];
+  let startErr = this.arrify(this.$('#errormsg_S'));
+  if(startErr.length !== 0) {
+    const foundStations = this.arrify(this.$('#REQ0JourneyStopsS0K'));
+    error.push(`Start: ${startErr[0]}\n${foundStations.join('\n')}\n`);
+  }
+  let destErr = this.arrify(this.$('#errormsg_Z'));
+  if(destErr.length !== 0) {
+    const foundStations = this.arrify(this.$('#REQ0JourneyStopsZ0K'));
+    error.push(`Ziel: ${destErr[0]}\n${foundStations.join('\n')}\n`);
+  }
+  let dateErr = this.arrify(this.$('#dateErr20'));
+  if(dateErr.length !== 0) {
+    error.push(`Datum: ${dateErr[0]}`);
+  }
+  let timeErr = this.arrify(this.$('#timeErr0'));
+  // for some reason body always has an element with id timeErr0: only actual error when it's non-empty
+  if(timeErr.length !== 0 && timeErr[0] !== "") {
+    error.push(`Zeit: ${timeErr[0]}`);
+  }
+  return error === [] ? null : ['Server konnte Anfrage nicht bearbeiten!'].concat(error).join('\n');
+};
 
 module.exports = {
   prefix,

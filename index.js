@@ -91,6 +91,11 @@ request.post({url: "https://reiseauskunft.bahn.de/bin/query.exe/", form: formDat
     fetchcount++;
   }
   const parser = new DBParser(body);
+  let error = parser.checkForErrors();
+  if(error) {
+    spinner.fail(error);
+    process.exit(1);
+  }
   let start_station = ['Start'].concat(parser.getStartElements());
   let dest_station = ['Ziel'].concat(parser.getDestinationElements());
   let dep_time = ['Abfahrtszeit'].concat(parser.getDepartureTimeElements());
