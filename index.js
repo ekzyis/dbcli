@@ -3,8 +3,11 @@
 const argv = require('minimist')(process.argv.slice(2));
 const request = require('request');
 const fs = require('fs');
-const cheerio = require('cheerio');
 const ora = require('ora');
+const { prefix, parseToDate, parseToTime, parseQueryString, calculate_padding,
+  DBParser
+} = require('./util');
+
 
 const DEFAULT_DATA = "HWAI%3DQUERY%21rit=no&queryPageDisplayed=yes&HWAI%3DQUERY%21displayed=yes&HWAI%3DJS%21ajax=yes&HWAI%3DJS%21js=yes&REQ0JourneyStopsS0A=255" +
   "&ignoreTypeCheck=yes&REQ0JourneyStopsS0a=131072&REQ0JourneyStopsZ0A=255&REQ0JourneyStopsZ0o=8&REQ0JourneyStopsZ0a=131072&REQ1JourneyDate=&REQ1JourneyTime=" +
@@ -18,31 +21,6 @@ const DEFAULT_DATA = "HWAI%3DQUERY%21rit=no&queryPageDisplayed=yes&HWAI%3DQUERY%
   "&REQ0JourneyDest_Foot_minDist=0&REQ0JourneyDep_Foot_maxDist=2000&REQ0JourneyDest_Foot_maxDist=2000&REQ0JourneyDep_Bike_minDist=0&REQ0JourneyDest_Bike_minDist=0&REQ0JourneyDep_Bike_maxDist=5000" +
   "&REQ0JourneyDest_Bike_maxDist=5000&REQ0JourneyDep_KissRide_minDist=2000&REQ0JourneyDest_KissRide_minDist=2000&REQ0JourneyDep_KissRide_maxDist=50000&REQ0JourneyDest_KissRide_maxDist=50000&travelProfile=" +
   "&traveller_Nr=1&REQ0Tariff_TravellerType.1=E&REQ0Tariff_TravellerReductionClass.1=0&REQ0Tariff_TravellerAge.1=&REQ0Tariff_Class=2&existOptionBits=yes&rtMode=12&start=Suchen";
-
-const prefix = (number) => {
-  return "" + `${number < 10 ? "0"+number : number}`;
-};
-
-const parseToDate = (date) => {
-  return "" + prefix(date.getDate()) + prefix(date.getMonth()+1) + date.getFullYear()
-};
-
-const parseToTime = (date) => {
-  return "" + prefix(date.getHours()) + prefix(date.getMinutes())
-};
-
-const parseQueryString = (query) => {
-  let parsed = {};
-  query.split('&').forEach(v => {
-    let key = v.split('=')[0];
-    let value = v.split('=')[1];
-    parsed = {
-      ...parsed,
-      [key] : value
-    }
-  });
-  return parsed;
-};
 
 const printUsage = () => {
   let USAGE_PAD = 23;
@@ -112,15 +90,13 @@ request.post({url: "https://reiseauskunft.bahn.de/bin/query.exe/", form: formDat
     file.end();
     fetchcount++;
   }
-
-  const $ = cheerio.load(body);
-  let arrify = elements => elements.toArray().map(obj => $(obj).text().trim());
-  let start_station = ['Start'].concat(arrify($('#resultsOverview').find('tr.firstrow > td.station.first')));
-  let dest_station = ['Ziel'].concat(arrify($('#resultsOverview').find('tr.last > td.station.stationDest')));
-  let dep_time = ['Abfahrtszeit'].concat(arrify($('#resultsOverview').find('tr.firstrow > td.time')));
-  let arr_time = ['Ankunftszeit'].concat(arrify($('#resultsOverview').find('tr.last > td.time')));
-  let duration = ['Dauer'].concat(arrify($('#resultsOverview').find('tr.firstrow > td.duration.lastrow')));
-  let product = ['Produkt'].concat(arrify($('#resultsOverview').find('tr.firstrow > td.products.lastrow')));
+  const parser = new DBParser(body);
+  let start_station = ['Start'].concat(parser.getStartElements());
+  let dest_station = ['Ziel'].concat(parser.getDestinationElements());
+  let dep_time = ['Abfahrtszeit'].concat(parser.getDepartureTimeElements());
+  let arr_time = ['Ankunftszeit'].concat(parser.getArrivalTimeElements());
+  let duration = ['Dauer'].concat(parser.getDurationTimeElements());
+  let product = ['Produkt'].concat(parser.getProductElements());
 
   spinner.text = `Fetching connections... fetched: ${start_station.length-1}`;
   // save previous latest journey time to check for "website blocking"
@@ -163,32 +139,19 @@ request.post({url: "https://reiseauskunft.bahn.de/bin/query.exe/", form: formDat
           file.end();
           fetchcount++;
         }
-        const $ = cheerio.load(body);
-        // TODO remove duplicate code (see selectors above)
-        start_station = start_station.concat(arrify($('#resultsOverview').find('tr.firstrow > td.station.first')));
-        dest_station = dest_station.concat(arrify($('#resultsOverview').find('tr.last > td.station.stationDest')));
-        dep_time = dep_time.concat(arrify($('#resultsOverview').find('tr.firstrow > td.time')));
-        arr_time = arr_time.concat(arrify($('#resultsOverview').find('tr.last > td.time')));
-        duration = duration.concat(arrify($('#resultsOverview').find('tr.firstrow > td.duration.lastrow')));
-        product = product.concat(arrify($('#resultsOverview').find('tr.firstrow > td.products.lastrow')));
+        parser.load(body);
+        start_station = start_station.concat(parser.getStartElements());
+        dest_station = dest_station.concat(parser.getDestinationElements());
+        dep_time = dep_time.concat(parser.getDepartureTimeElements());
+        arr_time = arr_time.concat(parser.getArrivalTimeElements());
+        duration = duration.concat(parser.getDurationTimeElements());
+        product = product.concat(parser.getProductElements());
         spinner.text = `Fetching connections... fetched: ${start_station.length-1}`;
         resolve();
       });
     });
     prev_latest = latestDepartureTime;
   }
-
-  const calculate_padding = (...dataArrays) => {
-    const MIN_DISTANCE = 5;
-    let pad = [];
-    dataArrays.forEach((arr,i) => {
-      arr.forEach(entry => {
-        if(pad[i] === undefined) pad[i] = entry.length + MIN_DISTANCE ;
-        else if(pad[i] < entry.length + MIN_DISTANCE) pad[i] = entry.length + MIN_DISTANCE;
-      })
-    });
-    return pad;
-  };
 
   const pad = calculate_padding(start_station,dest_station,dep_time,arr_time,duration,product);
 
